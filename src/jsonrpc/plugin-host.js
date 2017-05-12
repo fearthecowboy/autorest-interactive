@@ -29,10 +29,10 @@ class AutoRestPluginHost {
     Add(name, handler) {
         this.plugins[name] = handler;
     }
-    Run() {
+    Run(input = process.stdin, output = process.stdout) {
         return __awaiter(this, void 0, void 0, function* () {
             // connection setup
-            const channel = vscode_jsonrpc_1.createMessageConnection(process.stdin, process.stdout, {
+            const channel = vscode_jsonrpc_1.createMessageConnection(input, output, {
                 error(message) { console.error("error: ", message); },
                 info(message) { console.error("info: ", message); },
                 log(message) { console.error("log: ", message); },

@@ -1,17 +1,20 @@
-// polyfills for language support
-require("./polyfill.min.js");
-
-import { safeLoad } from "js-yaml";
+import { app, BrowserWindow, dialog } from "electron";
 import { AutoRestPluginHost } from "./jsonrpc/plugin-host";
-import { run } from "./autorest-interactive";
+// import { safeLoad } from "js-yaml";
+// import { run } from "./autorest-interactive";
 
-async function main() {
-  const pluginHost = new AutoRestPluginHost();
-  pluginHost.Add("autorest-interactive", async initiator => {
+import { createReadStream, createWriteStream } from "fs";
 
-  });
+var parent_stdin = createReadStream(null, { fd: 3 });
+var parent_stdout = createWriteStream(null, { fd: 4 });
 
-  await pluginHost.Run();
-}
+const pluginHost = new AutoRestPluginHost();
+pluginHost.Add("autorest-interactive", async initiator => {
+  const win = new BrowserWindow({});
+  win.setMenu(null);
 
-main();
+  win.loadURL("https://google.com/");
+
+  await new Promise<void>(res => win.on("closed", res));
+});
+pluginHost.Run(parent_stdin, parent_stdout);

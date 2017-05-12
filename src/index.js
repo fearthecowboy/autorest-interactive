@@ -8,27 +8,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// polyfills for language support
-require("./polyfill.min.js");
-const js_yaml_1 = require("js-yaml");
+const electron_1 = require("electron");
 const plugin_host_1 = require("./jsonrpc/plugin-host");
-const azure_openapi_validator_1 = require("./azure-openapi-validator");
-function main() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const pluginHost = new plugin_host_1.AutoRestPluginHost();
-        pluginHost.Add("azure-openapi-validator", (initiator) => __awaiter(this, void 0, void 0, function* () {
-            const files = yield initiator.ListInputs();
-            for (const file of files) {
-                initiator.Message({
-                    Channel: "verbose",
-                    Text: `Validating '${file}'`
-                });
-                const openapiDefinitionDocument = yield initiator.ReadFile(file);
-                const openapiDefinitionObject = js_yaml_1.safeLoad(openapiDefinitionDocument);
-                yield azure_openapi_validator_1.run(file, openapiDefinitionObject, initiator.Message.bind(initiator));
-            }
-        }));
-        yield pluginHost.Run();
-    });
-}
-main();
+// import { safeLoad } from "js-yaml";
+// import { run } from "./autorest-interactive";
+const fs_1 = require("fs");
+var parent_stdin = fs_1.createReadStream(null, { fd: 3 });
+var parent_stdout = fs_1.createWriteStream(null, { fd: 4 });
+const pluginHost = new plugin_host_1.AutoRestPluginHost();
+pluginHost.Add("autorest-interactive", (initiator) => __awaiter(this, void 0, void 0, function* () {
+    const win = new electron_1.BrowserWindow({});
+    win.setMenu(null);
+    win.loadURL("https://google.com/");
+    yield new Promise(res => win.on("closed", res));
+}));
+pluginHost.Run(parent_stdin, parent_stdout);

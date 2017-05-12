@@ -3,6 +3,7 @@ import {
   RequestType0, RequestType1, RequestType2,
   NotificationType2, NotificationType4
 } from "vscode-jsonrpc";
+import { Readable } from "stream";
 import { Mapping, Message, RawSourceMap } from "./types";
 
 module IAutoRestPluginTarget_Types {
@@ -39,11 +40,11 @@ export class AutoRestPluginHost {
     this.plugins[name] = handler;
   }
 
-  public async Run(): Promise<void> {
+  public async Run(input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stdout): Promise<void> {
     // connection setup
     const channel = createMessageConnection(
-      process.stdin,
-      process.stdout,
+      input,
+      output,
       {
         error(message) { console.error("error: ", message); },
         info(message) { console.error("info: ", message); },
