@@ -1,20 +1,21 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { AutoRestPluginHost } from "./jsonrpc/plugin-host";
+import { createReadStream, createWriteStream } from "fs";
 // import { safeLoad } from "js-yaml";
 // import { run } from "./autorest-interactive";
-
-import { createReadStream, createWriteStream } from "fs";
-
-var parent_stdin = createReadStream(null, { fd: 3 });
-var parent_stdout = createWriteStream(null, { fd: 4 });
 
 const pluginHost = new AutoRestPluginHost();
 pluginHost.Add("autorest-interactive", async initiator => {
   const win = new BrowserWindow({});
+  win.maximize();
   win.setMenu(null);
-
-  win.loadURL("https://google.com/");
-
-  await new Promise<void>(res => win.on("closed", res));
+  win.webContents.openDevTools();
+  const getValueListener = async (event, arg) => { event.returnValue = await initiator.GetValue(arg); };
+  ipcMain.on("getValue", getValueListener);
+  win.loadURL(`${__dirname}/autorest-interactive/index.html`);
+  await new Promise<void>(res => win.once("closed", res));
+  ipcMain.removeListener("getValue", getValueListener);
 });
+const parent_stdin = createReadStream(null, { fd: 3 });
+const parent_stdout = createWriteStream(null, { fd: 4 });
 pluginHost.Run(parent_stdin, parent_stdout);
