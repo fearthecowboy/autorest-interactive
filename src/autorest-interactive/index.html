@@ -32,6 +32,10 @@
             cursor: pointer;
         }
         
+        #overlays>div>div>h1 {
+            padding-top: 0;
+        }
+        
         #overlays>div {
             position: fixed;
             width: 100%;
@@ -39,8 +43,14 @@
             left: 0;
             top: 0;
             padding: 20px;
+            overflow-y: scroll;
+            overflow-x: auto;
             background: white;
             opacity: 0.95;
+        }
+        
+        #overlays>div>div>table {
+            white-space: nowrap;
         }
         
         #overlays>div>button {

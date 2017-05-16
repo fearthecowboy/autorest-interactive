@@ -8,8 +8,17 @@ function remoteEval(key) {
     return electron_1.ipcRenderer.sendSync("getValue", "__status." + new Buffer(key).toString("base64"));
 }
 $(() => {
+    const startTime = remoteEval("startTime");
     const pipeline = remoteEval("pipeline");
     const depth = (node) => node.inputs.map(i => depth(pipeline[i]) + 1).reduce((a, b) => Math.max(a, b), 0);
+    const runningTime = node => {
+        const selfFinished = node.state.finishedAt;
+        if (!selfFinished) {
+            return null;
+        }
+        const previousFinished = node.inputs.map(x => pipeline[x].state.finishedAt).reduce((a, b) => !b ? undefined : Math.max(a, b), startTime) || selfFinished;
+        return ((selfFinished || Date.now()) - (previousFinished || selfFinished)) / 1000;
+    };
     const nodes = Object.keys(pipeline).map(key => Object.assign(pipeline[key], { key: key, displayName: key.split("/") }));
     const links = [].concat.apply([], nodes.map(node => node.inputs.map(input => {
         return {
@@ -75,24 +84,23 @@ $(() => {
             update.selectAll("*").remove();
             update.append("circle")
                 .attr("r", "0.45em")
-                .attr("fill", d => d.state.state === "running" ? "#FFF" : (d.state.state === "complete" ? "#DFD" : "#FDD"));
+                .attr("fill", d => d.state.state === "running"
+                ? "#FFF"
+                : (d.state.state === "complete"
+                    ? `hsl(${(100 - 100 * Math.min(Math.max((runningTime(d) || 0) / 10, 0), 1)) | 0}, 100%, 80%)`
+                    : "#000"));
             update.append("text")
                 .attr("text-anchor", "middle")
-                .attr("style", d => `font-size: ${1 / (d.displayName.reduce((a, b) => Math.max(a, b.length), 0) + 1)}em`)
-                .html(d => d.displayName.map((l, i) => `<tspan x="0" y="${(i - (d.displayName.length - 1) / 2) * 1.3}em">${l}</tspan>`).join(""))
-                .attr("fill", "#000").attr("stroke-width", 0);
+                .attr("style", d => `font-size: ${1.2 / (d.displayName.reduce((a, b) => Math.max(a, b.length), 0) + 1)}em`)
+                .html(d => d.displayName.map((l, i) => `<tspan x="0" y="${(i - (d.displayName.length - 1) / 2) * 1.3 + 0.3}em">${l}</tspan>`).join(""))
+                .attr("fill", d => d.state.state === "failed" ? "#FFF" : "#000").attr("stroke-width", 0);
             update.append("text")
                 .attr("text-anchor", "middle")
                 .attr("y", "3.2em")
                 .attr("style", `font-size: 0.2em; font-weight: bold`)
                 .text(d => {
-                const selfFinished = d.state.finishedAt;
-                if (!selfFinished) {
-                    return "";
-                }
-                const previousFinished = d.inputs.map(x => pipeline[x].state.finishedAt).reduce((a, b) => !b ? undefined : Math.max(a, b), 0) || selfFinished;
-                const sec = (((selfFinished || Date.now()) - (previousFinished || selfFinished)) / 1000).toFixed(1);
-                return sec === "0.0" ? "" : `${sec}s`;
+                const sec = (runningTime(d) || 0).toFixed(1);
+                return sec === "0.0" || sec === "0.1" ? "" : `${sec}s`;
             })
                 .attr("fill", "#000").attr("stroke-width", 0);
         }
@@ -135,13 +143,14 @@ function showNodeDetails(node) {
         .append($("<td>").text(jsonpath_1.stringify(["$"].concat(node.configScope)))));
     table.append($("<tr>")
         .append($("<td>").text("Output"))
-        .append($("<td>").append($("<p>").append(node.state.outputUris.map(uri => $("<a>").attr("href", "#").text(uri).click(() => showUriDetails(uri)))))));
+        .append($("<td>").append(node.state.outputUris.map(uri => $("<p>").append($("<a>").attr("href", "#").text(uri).click(() => showUriDetails(uri)))))));
     showOverlay(content);
 }
 function showUriDetails(uri) {
     const content = $("<div>");
     content.append($("<h1>").text(uri));
     showOverlay(content);
+    throw "asd";
 }
 // let deltaX: number | null = null;
 // let deltaY: number | null = null;
