@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron";
 import * as $ from "jquery";
 import * as d3 from "d3";
-import { nodes } from "jsonpath";
+import { nodes, stringify } from "jsonpath";
 import { JsonPath } from "../jsonrpc/types";
 
 
@@ -12,25 +12,26 @@ function remoteEval(key: string): any {
 //   return ipcRenderer.sendSync("getValue", key);
 // }
 
+type PipelineNodeState = {
+  state: "running" | "failed" | "complete";
+  outputUris?: string[];
+  finishedAt?: number;
+};
+type PipelineNode = {
+  outputArtifact?: string;
+  pluginName: string;
+  configScope: JsonPath;
+  inputs: string[];
+  // artificial
+  key: string;
+  displayName: string[];
+  x: number;
+  y: number;
+  depth: number;
+  state: PipelineNodeState;
+};
+
 $(() => {
-  type PipelineNodeState = {
-    state: "running" | "failed" | "complete";
-    outputUris?: string[];
-    finishedAt?: number;
-  };
-  type PipelineNode = {
-    outputArtifact?: string;
-    pluginName: string;
-    configScope: JsonPath;
-    inputs: string[];
-    // artificial
-    key: string;
-    displayName: string[];
-    x: number;
-    y: number;
-    depth: number;
-    state: PipelineNodeState;
-  };
   const pipeline: { [name: string]: PipelineNode } = remoteEval("pipeline");
 
   const depth = (node: PipelineNode) => node.inputs.map(i => depth(pipeline[i]) + 1).reduce((a, b) => Math.max(a, b), 0);
@@ -52,14 +53,22 @@ $(() => {
   const height = width * 0.7;
 
   const simulation = d3.forceSimulation(nodes)
-    .force("charge", d3.forceManyBody().strength(-1))
+    .force("charge", d3.forceManyBody().strength(-1).distanceMin(10).distanceMin(30))
     .force("link", d3.forceLink(links).distance(1).strength(1).iterations(10))
     .force("y", d3.forceY(0))
     .stop();
-  for (var i = 0; i < 1000; ++i) {
+  for (var i = 0; i < 1; ++i) {
     simulation.tick();
-    nodes.forEach(n => n.x = n.depth - width / 2);
     nodes.forEach(n => n.y = Math.min(Math.max(n.y, -height / 2), height / 2));
+    for (let d = 0; d <= width; ++d) {
+      const nodeSet = nodes.filter(n => n.depth === d);
+      const meanY = nodeSet.map(n => n.y).reduce((a, b) => a + b, 0) / nodeSet.length;
+      for (let i = 0; i < nodeSet.length; ++i) {
+        const n = nodeSet[i];
+        n.x = d - width / 2;
+        n.y = meanY + (i - nodeSet.length / 2) * 1.3;
+      }
+    }
   }
 
   const vis = d3.select("#pipelineGraph").attr("viewBox", `0 0 ${width + 2} ${height + 2}`).append("g").attr("transform", `translate(${width / 2 + 1},${height / 2 + 1})`);
@@ -72,7 +81,8 @@ $(() => {
 
     const lineData = vis.selectAll("line.edge").data(links);
     {
-      lineData.enter().append("line").attr("class", "edge").attr("stroke", "#000").attr("stroke-width", 0.02)
+      const enter = lineData.enter().append("line").attr("class", "edge").attr("stroke", "#000").attr("stroke-width", 0.02);
+      lineData.merge(enter)
         .attr("x1", d => d.source.x.toFixed(3))
         .attr("y1", d => d.source.y.toFixed(3))
         .attr("x2", d => d.target.x.toFixed(3))
@@ -91,7 +101,11 @@ $(() => {
         .attr("transform", d => `translate(${d.x},${d.y})`)
         .append("g")
         .attr("class", "scalable")
-        .on("click", d => alert(JSON.stringify(d.configScope)));
+        .on("click", showNodeDetails)
+        // .on("mousedown", d => moveNodeStart(d, d3.event))
+        // .on("mousemove", d => moveNode(d, d3.event))
+        // .on("mouseup", d => moveNodeEnd(d, d3.event))
+        ;
       nodeData.exit().remove();
       const update = nodeData.select(".scalable").merge(enter);
       update.selectAll("*").remove();
@@ -142,3 +156,53 @@ $(() => {
   //   $("body").text(JSON.stringify(3));
   // }, 1000);
 });
+
+function showOverlay(content: JQuery): void {
+  const overlay = $("<div>");
+  overlay.append($("<button>").text("X").click(() => overlay.remove()));
+  overlay.append(content);
+  $("#overlays").append(overlay);
+}
+
+function showNodeDetails(node: PipelineNode): void {
+  const content = $("<div>")
+  content.append($("<h1>").text(node.key));
+  const table = $("<table>");
+  content.append(table);
+  table.append($("<tr>")
+    .append($("<td>").text("Plugin"))
+    .append($("<td>").text(node.pluginName)));
+  table.append($("<tr>")
+    .append($("<td>").text("Configuration Scope"))
+    .append($("<td>").text(stringify(["$"].concat(node.configScope as any)))));
+  table.append($("<tr>")
+    .append($("<td>").text("Output"))
+    .append($("<td>").append($("<p>").append(node.state.outputUris.map(uri => $("<a>").attr("href", "#").text(uri).click(() => showUriDetails(uri)))))));
+  showOverlay(content);
+}
+
+function showUriDetails(uri: string): void {
+  const content = $("<div>")
+  content.append($("<h1>").text(uri));
+  showOverlay(content);
+}
+
+// let deltaX: number | null = null;
+// let deltaY: number | null = null;
+
+// function moveNodeStart(node: PipelineNode, e: MouseEvent): void {
+//   deltaX = e.pageX - node.x;
+//   deltaY = e.pageY - node.y;
+// }
+
+// function moveNode(node: PipelineNode, e: MouseEvent): void {
+//   if (deltaX !== null) {
+//     node.x = e.pageX - deltaX;
+//     node.y = e.pageY - deltaY;
+//   }
+// }
+
+// function moveNodeEnd(node: PipelineNode, e: MouseEvent): void {
+//   deltaX = null;
+//   deltaY = null;
+// }

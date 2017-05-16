@@ -7,6 +7,11 @@
     </script>
     <script src="index.js"></script>
     <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+        }
+        
         body {
             padding: 0;
             margin: 0;
@@ -26,12 +31,29 @@
             transform: scale(2);
             cursor: pointer;
         }
+        
+        #overlays>div {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            left: 0;
+            top: 0;
+            padding: 20px;
+            background: white;
+            opacity: 0.95;
+        }
+        
+        #overlays>div>button {
+            float: right;
+            width: 30px;
+            height: 30px;
+        }
     </style>
 </head>
 
 <body>
-    <svg id="pipelineGraph">
-    </svg>
+    <svg id="pipelineGraph"></svg>
+    <div id="overlays"></div>
 </body>
 
 </html>
