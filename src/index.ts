@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { AutoRestPluginHost } from "./jsonrpc/plugin-host";
 import { createReadStream, createWriteStream } from "fs";
-// import { safeLoad } from "js-yaml";
+import { safeLoad } from "js-yaml";
 // import { run } from "./autorest-interactive";
 
 const pluginHost = new AutoRestPluginHost();
@@ -9,12 +9,21 @@ pluginHost.Add("autorest-interactive", async initiator => {
   const win = new BrowserWindow({});
   win.maximize();
   win.setMenu(null);
-  win.webContents.openDevTools();
-  const getValueListener = async (event, arg) => { event.returnValue = await initiator.GetValue(arg); };
-  ipcMain.on("getValue", getValueListener);
+  if (await initiator.GetValue("debug")) {
+    win.webContents.openDevTools();
+  }
+  const readFileListener = async (event, uri) => {
+    event.returnValue = await initiator.ReadFile(uri);
+  };
+  const remoteEvalListener = async (event, expression) => {
+    event.returnValue = safeLoad(await initiator.GetValue("__status." + new Buffer(expression).toString("base64")));
+  };
+  ipcMain.on("readFile", readFileListener);
+  ipcMain.on("remoteEval", remoteEvalListener);
   win.loadURL(`${__dirname}/autorest-interactive/index.html`);
   await new Promise<void>(res => win.once("closed", res));
-  ipcMain.removeListener("getValue", getValueListener);
+  ipcMain.removeListener("getValue", remoteEvalListener);
+  ipcMain.removeListener("readFile", readFileListener);
 });
 const parent_stdin = createReadStream(null, { fd: 3 });
 const parent_stdout = createWriteStream(null, { fd: 4 });

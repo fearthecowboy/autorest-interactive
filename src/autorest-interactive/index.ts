@@ -1,16 +1,17 @@
-import { ipcRenderer } from "electron";
+import { ipcRenderer, remote } from "electron";
 import * as $ from "jquery";
 import * as d3 from "d3";
 import { nodes, stringify } from "jsonpath";
 import { JsonPath } from "../jsonrpc/types";
 
+window.onerror = e => remote.dialog.showErrorBox("Unhandled Error", e);
 
-function remoteEval(key: string): any {
-  return ipcRenderer.sendSync("getValue", "__status." + new Buffer(key).toString("base64"));
+function remoteEval(expression: string): any {
+  return ipcRenderer.sendSync("remoteEval", expression);
 }
-// function remoteEval(expression: string): string {
-//   return ipcRenderer.sendSync("getValue", key);
-// }
+function readFile(uri: string): any {
+  return ipcRenderer.sendSync("readFile", uri);
+}
 
 type PipelineNodeState = {
   state: "running" | "failed" | "complete";
@@ -127,7 +128,7 @@ $(() => {
             : "#000"));
       update.append("text")
         .attr("text-anchor", "middle")
-        .attr("style", d => `font-size: ${1.2 / (d.displayName.reduce((a, b) => Math.max(a, b.length), 0) + 1)}em`)
+        .attr("style", d => `font-size: ${1.6 / (d.displayName.reduce((a, b) => Math.max(a, b.length), 0) + 1)}em`)
         .html(d => d.displayName.map((l, i) => `<tspan x="0" y="${(i - (d.displayName.length - 1) / 2) * 1.3 + 0.3}em">${l}</tspan>`).join(""))
         .attr("fill", d => d.state.state === "failed" ? "#FFF" : "#000").attr("stroke-width", 0);
       update.append("text")
@@ -152,7 +153,7 @@ $(() => {
         node.state.outputUris = remoteEval(`tasks[${JSON.stringify(node.key)}]._result().map(x => x.key)`);
       }
     }
-  }
+  };
 
   const refresh = () => { update(); render(); };
 
@@ -165,18 +166,17 @@ $(() => {
   // }, 1000);
 });
 
-function showOverlay(content: JQuery): void {
+function showOverlay(title: string, content: JQuery): void {
   const overlay = $("<div>");
-  overlay.append($("<button>").text("X").click(() => overlay.remove()));
-  overlay.append(content);
+  overlay.append($("<h1>")
+    .append($("<button>").text("X").click(() => overlay.remove()))
+    .append($("<span>").text(title)));
+  overlay.append($("<div>").append(content));
   $("#overlays").append(overlay);
 }
 
 function showNodeDetails(node: PipelineNode): void {
-  const content = $("<div>");
-  content.append($("<h1>").text(node.key));
   const table = $("<table>");
-  content.append(table);
   table.append($("<tr>")
     .append($("<td>").text("Plugin"))
     .append($("<td>").text(node.pluginName)));
@@ -185,15 +185,127 @@ function showNodeDetails(node: PipelineNode): void {
     .append($("<td>").text(stringify(["$"].concat(node.configScope as any)))));
   table.append($("<tr>")
     .append($("<td>").text("Output"))
-    .append($("<td>").append(node.state.outputUris.map(uri => $("<p>").append($("<a>").attr("href", "#").text(uri).click(() => showUriDetails(uri)))))));
-  showOverlay(content);
+    .append($("<td>").append(node.state.outputUris.map(uri => $("<a>")
+      .attr("href", "#")
+      .text(uri)
+      .click(() => showUriDetails(uri))
+      .append($("<br>"))))));
+  showOverlay(node.key, table);
 }
 
 function showUriDetails(uri: string): void {
-  const content = $("<div>")
-  content.append($("<h1>").text(uri));
-  showOverlay(content);
-  throw "asd";
+  const content = $("<pre>").css("font-family", "monospace").text(readFile(uri));
+  content.click(e => {
+    const s = window.getSelection();
+    showBlameTreeDetails(remoteEval(`blame(${JSON.stringify(uri)}, ${JSON.stringify({ index: s.anchorOffset })})`));
+  });
+  showOverlay(uri, content);
+}
+
+type BlameTree = { node: any, blaming: BlameTree[] };
+
+function showBlameTreeDetails(blameTree: BlameTree): void {
+  const content = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+
+  const depth = (blameTree: BlameTree) => blameTree.blaming.map(n => depth(n) + 1).reduce((a, b) => Math.max(a, b), 0);
+  const getNodes: (blameTree: BlameTree) => BlameTree[] = blameTree => [blameTree].concat(...blameTree.blaming.map(getNodes));
+
+  const nodes: (BlameTree & {
+    displayName: string[];
+    depth: number;
+    x: number;
+    y: number;
+  })[] = getNodes(blameTree).map(node => Object.assign(node, { displayName: [node.node.source, node.node.line + ":" + node.node.column] } as any));
+  const links: { source: PipelineNode, target: PipelineNode }[] = [].concat.apply([],
+    nodes.map(node => node.blaming.map(input => {
+      return {
+        source: input,
+        target: node
+      };
+    })));
+
+  // horiz layout
+  nodes.forEach(n => n.depth = depth(n));
+  nodes.forEach((n, i) => n.x = i / 10);
+  const height = nodes.map(x => x.depth).reduce((a, b) => Math.max(a, b), 0);
+  let width = 5;
+  for (let i = 0; i <= height; ++i) {
+    width = Math.max(width, nodes.filter(n => n.depth === i).length);
+  }
+
+  const simulation = d3.forceSimulation(nodes)
+    .force("charge", d3.forceManyBody().strength(-1).distanceMin(10).distanceMin(30))
+    .force("link", d3.forceLink(links).distance(1).strength(1).iterations(10))
+    .force("x", d3.forceX(0))
+    .stop();
+  for (var i = 0; i < 1; ++i) {
+    simulation.tick();
+    nodes.forEach(n => n.x = Math.min(Math.max(n.x, -width / 2), width / 2));
+    for (let d = 0; d <= height; ++d) {
+      const nodeSet = nodes.filter(n => n.depth === d);
+      for (let i = 0; i < nodeSet.length; ++i) {
+        const n = nodeSet[i];
+        n.y = 5 * (d - height / 2);
+        n.x = 0 + (i - nodeSet.length / 2) * 1;
+      }
+    }
+  }
+
+  const vis = d3.select(content).attr("viewBox", `0 0 ${width + 2} ${5 * (height + 1)}`).append("g").attr("transform", `translate(${width / 2 + 1},${5 * (height + 1) / 2})`);
+
+  let lastFootprint: string = null;
+
+  const footprint = JSON.stringify(nodes) + JSON.stringify(links);
+  if (lastFootprint === footprint) return;
+  lastFootprint = footprint;
+
+  const lineData = vis.selectAll("line.edge").data(links);
+  {
+    const enter = lineData.enter().append("line").attr("class", "edge").attr("stroke", "#000").attr("stroke-width", 0.02);
+    lineData.merge(enter)
+      .attr("x1", d => d.source.x.toFixed(3))
+      .attr("y1", d => d.source.y.toFixed(3))
+      .attr("x2", d => d.target.x.toFixed(3))
+      .attr("y2", d => d.target.y.toFixed(3));
+    lineData.exit().remove();
+  }
+
+  const nodeData = vis.selectAll(".node").data(nodes);
+  {
+    const enter = nodeData.enter()
+      .append("g")
+      .attr("writing-mode", "tb-rl")
+      .attr("class", "node")
+      .attr("stroke", "#000")
+      .attr("fill", "#FFF")
+      .attr("stroke-width", 0.03)
+      .attr("transform", d => `translate(${d.x},${d.y})`)
+      .append("g")
+      .attr("class", "scalable")
+      .on("click", d => remote.dialog.showMessageBox({ title: d.node.source, message: d.node.name }))
+      ;
+    const update = nodeData.select(".scalable").merge(enter);
+    update.selectAll("*").remove();
+    update.append("rect")
+      .attr("width", "0.9em")
+      .attr("height", "4.9em")
+      .attr("x", "-0.45em")
+      .attr("y", "-2.45em")
+      .attr("fill", "#FFF");
+    update.append("text")
+      .attr("text-anchor", "middle")
+      .attr("fill", "#000")
+      .attr("style", d => `font-size: ${10 / (d.displayName.reduce((a, b) => Math.max(a, b.length), 0) + 1)}em`)
+      .html(d => d.displayName.map((l, i) => `<tspan y="0" x="${-(i - (d.displayName.length - 1) / 2) * 1.3 - 0.3}em">${l}</tspan>`).join(""))
+      .attr("stroke-width", 0);
+    update.append("text")
+      .attr("text-anchor", "middle")
+      .attr("y", "3.2em")
+      .attr("style", `font-size: 0.2em; font-weight: bold`)
+      .text(d => "")
+      .attr("fill", "#000").attr("stroke-width", 0);
+  }
+  showOverlay(`Blame`, $(content));
 }
 
 // let deltaX: number | null = null;
