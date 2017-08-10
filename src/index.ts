@@ -2,7 +2,9 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { AutoRestPluginHost } from "./jsonrpc/plugin-host";
 import { createReadStream, createWriteStream } from "fs";
 import { safeLoad } from "js-yaml";
-// import { run } from "./autorest-interactive";
+
+// required to actually keep process running when window is closed
+app.on('window-all-closed', () => { })
 
 const pluginHost = new AutoRestPluginHost();
 pluginHost.Add("autorest-interactive", async initiator => {
@@ -22,7 +24,7 @@ pluginHost.Add("autorest-interactive", async initiator => {
   ipcMain.on("remoteEval", remoteEvalListener);
   win.loadURL(`${__dirname}/autorest-interactive/index.html`);
   await new Promise<void>(res => win.once("closed", res));
-  ipcMain.removeListener("getValue", remoteEvalListener);
+  ipcMain.removeListener("remoteEval", remoteEvalListener);
   ipcMain.removeListener("readFile", readFileListener);
 });
 const parent_stdin = createReadStream(null, { fd: 3 });
