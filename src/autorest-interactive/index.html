@@ -11,12 +11,12 @@
             box-sizing: border-box;
             font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
         }
-        
+
         body {
             padding: 0;
             margin: 0;
         }
-        
+
         #overlays>div {
             position: fixed;
             width: 100%;
@@ -29,7 +29,7 @@
             background: white;
             opacity: 0.95;
         }
-        
+
         #overlays>div>h1 {
             z-index: 10;
             position: fixed;
@@ -41,37 +41,42 @@
             background: white;
             white-space: nowrap;
         }
-        
+
         #overlays>div>h1>button {
             width: 30px;
             height: 30px;
             margin-right: 20px;
             vertical-align: bottom;
         }
-        
+
         #overlays>div>div {}
-        
+
         #overlays>div>div>table {
             white-space: nowrap;
         }
-        
+
         svg {
             font-size: 1px;
             font-family: monospace;
         }
-        
+
         #pipelineGraph {
             width: 100%;
             height: 100%;
         }
-        
+
         .scalable:hover {
             transform: scale(2);
             cursor: pointer;
         }
-        
+
         line.edge {
             stroke: #CCC;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100%;
         }
     </style>
 </head>

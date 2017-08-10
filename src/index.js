@@ -12,7 +12,8 @@ const electron_1 = require("electron");
 const plugin_host_1 = require("./jsonrpc/plugin-host");
 const fs_1 = require("fs");
 const js_yaml_1 = require("js-yaml");
-// import { run } from "./autorest-interactive";
+// required to actually keep process running when window is closed
+electron_1.app.on('window-all-closed', () => { });
 const pluginHost = new plugin_host_1.AutoRestPluginHost();
 pluginHost.Add("autorest-interactive", (initiator) => __awaiter(this, void 0, void 0, function* () {
     const win = new electron_1.BrowserWindow({});
@@ -31,7 +32,7 @@ pluginHost.Add("autorest-interactive", (initiator) => __awaiter(this, void 0, vo
     electron_1.ipcMain.on("remoteEval", remoteEvalListener);
     win.loadURL(`${__dirname}/autorest-interactive/index.html`);
     yield new Promise(res => win.once("closed", res));
-    electron_1.ipcMain.removeListener("getValue", remoteEvalListener);
+    electron_1.ipcMain.removeListener("remoteEval", remoteEvalListener);
     electron_1.ipcMain.removeListener("readFile", readFileListener);
 }));
 const parent_stdin = fs_1.createReadStream(null, { fd: 3 });

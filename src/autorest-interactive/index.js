@@ -151,6 +151,23 @@ function showNodeDetails(node) {
         .text(uri)
         .click(() => showUriDetails(uri))
         .append($("<br>"))))));
+    // ext. extension
+    const extensionName = remoteEval(`(external[${JSON.stringify(node.pluginName)}] || {}).extensionName`);
+    if (extensionName) {
+        table.append($("<tr>")
+            .append($("<td>").text("Extension"))
+            .append($("<td>").append(extensionName)));
+        const traffic = remoteEval(`external[${JSON.stringify(node.pluginName)}].inspectTraffic`);
+        for (const [timeStamp, isCore2Ext, payload] of traffic) {
+            const payloadShortened = payload.length > 200 ? payload.substr(0, 200) + "..." : payload;
+            table.append($("<tr>").css("background", isCore2Ext ? "#FEE" : "#EFE")
+                .append($("<td>").text(new Date(timeStamp).toLocaleTimeString() + (isCore2Ext ? " (core => ext)" : " (ext => core)")))
+                .append($("<td>").append($("<a>")
+                .attr("href", "#")
+                .text(payloadShortened)
+                .click(() => showOverlay("", $("<textarea>").val(payload))))));
+        }
+    }
     showOverlay(node.key, table);
 }
 function showUriDetails(uri) {
