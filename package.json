@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare" : "tsc -p . ", 
     "start": "node index.js"
   },
   "repository": {
@@ -26,7 +27,8 @@
     "@types/jquery": "^2.0.43",
     "@types/js-yaml": "^3.5.30",
     "@types/jsonpath": "^0.1.29",
-    "@types/node": "^7.0.18"
+    "@types/node": "^7.0.18",
+    "typescript" : "*"
   },
   "dependencies": {
     "d3": "^4.8.0",
