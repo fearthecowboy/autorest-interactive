@@ -281,4 +281,4 @@ function showBlameTreeDetails(blameTree) {
 // function moveNodeEnd(node: PipelineNode, e: MouseEvent): void {
 //   deltaX = null;
 //   deltaY = null;
-// } 
+// }
